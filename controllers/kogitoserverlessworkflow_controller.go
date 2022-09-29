@@ -18,12 +18,11 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	apiv08 "github.com/davidesalerno/kogito-serverless-operator/api/v08"
 	"github.com/davidesalerno/kogito-serverless-operator/builder"
-	"github.com/davidesalerno/kogito-serverless-operator/converters"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -31,13 +30,15 @@ import (
 
 // KogitoServerlessWorkflowReconciler reconciles a KogitoServerlessWorkflow object
 type KogitoServerlessWorkflowReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
+	Client   client.Client
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=kogitoserverlessworkflows,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=kogitoserverlessworkflows/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=kogitoserverlessworkflows/finalizers,verbs=update
+//+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=pods,verbs=get;watch;list
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -49,9 +50,10 @@ type KogitoServerlessWorkflowReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
 func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
+	log.Info("Reconcile KogitoServerlessWorkflowReconciler")
 	// Lookup the KogitoServerlessWorkflow instance for this reconcile request
 	instance := &apiv08.KogitoServerlessWorkflow{}
-	err := r.Get(ctx, req.NamespacedName, instance)
+	err := r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -62,33 +64,15 @@ func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req 
 		}
 		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get KogitoServerlessWorkflow")
-
 		return ctrl.Result{}, err
 	}
+
 	//TODO handleBuilderSecret(instance, r.Client)
 	//TODO KOGITO-7840 Add validation on Workflow Metadata
-	converter := converters.NewKogitoServerlessWorkflowConverter(ctx)
-	workflow, err := converter.ToCNCFWorkflow(instance)
-	if err != nil {
-		log.Error(err, "Failed converting KogitoServerlessWorkflow into Workflow")
-		return ctrl.Result{}, err
-	}
-	jsonWorkflow, err := json.Marshal(workflow)
-	if err != nil {
-		log.Error(err, "Failed converting KogitoServerlessWorkflow into JSON")
-		return ctrl.Result{}, err
-	}
-	log.Info("Converted Workflow CR into Kogito JSON Workflow", "workflow", jsonWorkflow)
-	//TODO Save into Shared Volume
-	//"greetings.sw.json"
-	//TODO KOGITO-7498 Kogito Serverless Workflow Builder Image
-	//[KOGITO-7899]-Integrate Kaniko into SWF Operator
-	builder := builder.NewBuilder(ctx)
-	_, err = builder.BuildImageWithDefaults(workflow.ID, jsonWorkflow)
-	if err != nil {
-		log.Info("Error building KogitoServerlessWorkflow into Workflow: ", "message", err.Error())
-	}
-	return ctrl.Result{}, nil
+	buildable := builder.NewBuildable(r.Client, ctx)
+	_, err = buildable.HandleWorkflowBuild(instance.Name, req)
+
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.
