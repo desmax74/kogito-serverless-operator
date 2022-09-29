@@ -22,17 +22,23 @@ import (
 	apiv08 "github.com/davidesalerno/kogito-serverless-operator/api/v08"
 	"github.com/davidesalerno/kogito-serverless-operator/builder"
 	"github.com/davidesalerno/kogito-serverless-operator/converters"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // KogitoServerlessWorkflowReconciler reconciles a KogitoServerlessWorkflow object
 type KogitoServerlessWorkflowReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
+	Client   client.Client
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=kogitoserverlessworkflows,verbs=get;list;watch;create;update;patch;delete
@@ -51,7 +57,7 @@ func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req 
 	log := ctrllog.FromContext(ctx)
 	// Lookup the KogitoServerlessWorkflow instance for this reconcile request
 	instance := &apiv08.KogitoServerlessWorkflow{}
-	err := r.Get(ctx, req.NamespacedName, instance)
+	err := r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -78,22 +84,16 @@ func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req 
 		log.Error(err, "Failed converting KogitoServerlessWorkflow into JSON")
 		return ctrl.Result{}, err
 	}
-	log.Info("Converted Workflow CR into Kogito JSON Workflow", "workflow", jsonWorkflow)
-	//TODO Save into Shared Volume
-	//"greetings.sw.json"
-	//TODO KOGITO-7498 Kogito Serverless Workflow Builder Image
-	//[KOGITO-7899]-Integrate Kaniko into SWF Operator
-	builder := builder.NewBuilder(ctx)
-	_, err = builder.BuildImageWithDefaults(workflow.ID, jsonWorkflow)
-	if err != nil {
-		log.Info("Error building KogitoServerlessWorkflow into Workflow: ", "message", err.Error())
-	}
-	return ctrl.Result{}, nil
+	buildable := builder.NewBuildableSwf(r.Client, log, ctx)
+	return buildable.HandleBuildStatus(workflow.ID, jsonWorkflow, req)
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *KogitoServerlessWorkflowReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv08.KogitoServerlessWorkflow{}).
+		Owns(&appsv1.Deployment{}).
+		Watches(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }

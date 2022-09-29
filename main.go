@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"github.com/davidesalerno/kogito-serverless-operator/controllers"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -32,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	apiv08 "github.com/davidesalerno/kogito-serverless-operator/api/v08"
-	"github.com/davidesalerno/kogito-serverless-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -71,7 +71,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "1be5e57d.kiegroup.org",
+		LeaderElectionID:       "1be5e57d.kie.org",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -79,10 +79,19 @@ func main() {
 	}
 
 	if err = (&controllers.KogitoServerlessWorkflowReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("kogitoswf-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KogitoServerlessWorkflow")
+		os.Exit(1)
+	}
+	if err = (&controllers.KogitoServerlessBuildReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("kogitoswfbuild-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "KogitoServerlessBuild")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

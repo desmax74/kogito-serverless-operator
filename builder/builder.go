@@ -74,7 +74,7 @@ func (r *Builder) BuildImage(b KogitoBuilder) (*api.Build, error) {
 	}
 
 	build, err := builder.NewBuild(platform, b.ImageName, b.PodMiddleName).
-		WithResource(constants.BUILDER_RESOURCE_NAME_DEFAULT, b.DockerFile).WithResource(b.SourceSwfName+".sw.json", b.SourceSwf).
+		WithResource(constants.BUILDER_RESOURCE_NAME_DEFAULT, b.DockerFile).WithResource(b.SourceSwfName+constants.WORKFLOW_DEFAULT_EXTENSION, b.SourceSwf).
 		WithClient(cli).
 		Schedule()
 	if err != nil {

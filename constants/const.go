@@ -20,7 +20,8 @@ const (
 	BUILDER_IMG_NAME_DEFAULT  = "platform"
 
 	BUILDER_RESOURCE_NAME_DEFAULT = "Dockerfile"
+	WORKFLOW_DEFAULT_EXTENSION    = ".sw.json"
 
-	DEFAULT_REGISTRY_REPO = "quay.io/kiegroup"
+	DEFAULT_REGISTRY_REPO = "quay.io/mdessi"
 	DEFAULT_KANIKO_SECRET = "regcred"
 )
