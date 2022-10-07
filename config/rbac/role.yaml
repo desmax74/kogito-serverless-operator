@@ -57,3 +57,11 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - sw.kogito.kie.org
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch

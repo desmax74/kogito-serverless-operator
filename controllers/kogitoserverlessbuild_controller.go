@@ -17,16 +17,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/davidesalerno/kogito-serverless-operator/builder"
-	"github.com/go-logr/logr"
 	"github.com/ricardozanini/kogito-builder/api"
 	buildr "github.com/ricardozanini/kogito-builder/builder"
 	clientr "github.com/ricardozanini/kogito-builder/client"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	api08 "github.com/davidesalerno/kogito-serverless-operator/api/v08"
 )
@@ -53,15 +54,15 @@ type KogitoServerlessBuildReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *KogitoServerlessBuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	//GetRecorder(name string)
 	log.Info("Reconcile KogitoServerlessBuildReconciler")
 	instance := &api08.KogitoServerlessBuild{}
+
 	err := r.Get(ctx, req.NamespacedName, instance)
 	if err == nil {
 		log.Info("Build CR present")
 		phase := instance.Spec.BuildPhase
 		log.Info(string(phase))
-		if phase != api.BuildPhaseSucceeded && phase != api.BuildPhaseError && phase != api.BuildPhaseFailed {
+		if phase != api.BuildPhaseSucceeded && phase != api.BuildPhaseError && phase != api.BuildPhaseFailed && phase != api.BuildPhasePending {
 			builder := builder.NewBuilder(ctx)
 			build, err := builder.BuildImageWithDefaults(instance.Spec.SwfName, instance.Spec.SourceSwf)
 			if err == nil {
@@ -72,29 +73,26 @@ func (r *KogitoServerlessBuildReconciler) Reconcile(ctx context.Context, req ctr
 						instance.Spec.BuildPhase = build.Status.Phase
 						err := r.Update(ctx, instance)
 						if err == nil {
-							r.Recorder.Event(instance, v1.EventTypeNormal, "Updated", fmt.Sprintf("Updated buildphase to  %s", instance.Spec.BuildPhase))
+							log.Info("create an event")
+							r.Recorder.Event(instance, corev1.EventTypeNormal, "Updated", fmt.Sprintf("Updated buildphase to  %s", instance.Spec.BuildPhase))
 							return ctrl.Result{Requeue: true}, nil
 						}
 					}
 				}
 			}
+			log.Error(err, "error")
 		}
+	} else {
+		log.Info("Build CR isn't present")
+		return ctrl.Result{}, nil
 	}
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *KogitoServerlessBuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&api08.KogitoServerlessBuild{}).
+		Watches(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
-}
-
-func (r *KogitoServerlessBuildReconciler) finalizeServerlessBuild(reqLogger logr.Logger, b *api08.KogitoServerlessBuild) error {
-	// TODO(user): Add the cleanup steps that the operator
-	// needs to do before the CR can be deleted. Examples
-	// of finalizers include performing backups and deleting
-	// resources that are not owned by this CR, like a PVC.
-	reqLogger.Info("Successfully finalized ServerlessBuild")
-	return nil
 }
