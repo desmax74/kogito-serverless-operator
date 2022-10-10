@@ -22,22 +22,29 @@ import (
 	apiv08 "github.com/davidesalerno/kogito-serverless-operator/api/v08"
 	"github.com/davidesalerno/kogito-serverless-operator/builder"
 	"github.com/davidesalerno/kogito-serverless-operator/converters"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // KogitoServerlessWorkflowReconciler reconciles a KogitoServerlessWorkflow object
 type KogitoServerlessWorkflowReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
+	Client   client.Client
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=kogitoserverlessworkflows,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=kogitoserverlessworkflows/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=kogitoserverlessworkflows/finalizers,verbs=update
+//+kubebuilder:rbac:groups=sw.kogito.kie.org,resources=pods,verbs=get;watch;list
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -49,9 +56,10 @@ type KogitoServerlessWorkflowReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
 func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
+	log.Info("************************************************* Reconcile KogitoServerlessWorkflowReconciler")
 	// Lookup the KogitoServerlessWorkflow instance for this reconcile request
 	instance := &apiv08.KogitoServerlessWorkflow{}
-	err := r.Get(ctx, req.NamespacedName, instance)
+	err := r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -62,9 +70,9 @@ func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req 
 		}
 		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get KogitoServerlessWorkflow")
-
 		return ctrl.Result{}, err
 	}
+
 	//TODO handleBuilderSecret(instance, r.Client)
 	//TODO KOGITO-7840 Add validation on Workflow Metadata
 	converter := converters.NewKogitoServerlessWorkflowConverter(ctx)
@@ -78,22 +86,22 @@ func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req 
 		log.Error(err, "Failed converting KogitoServerlessWorkflow into JSON")
 		return ctrl.Result{}, err
 	}
-	log.Info("Converted Workflow CR into Kogito JSON Workflow", "workflow", jsonWorkflow)
-	//TODO Save into Shared Volume
-	//"greetings.sw.json"
-	//TODO KOGITO-7498 Kogito Serverless Workflow Builder Image
-	//[KOGITO-7899]-Integrate Kaniko into SWF Operator
-	builder := builder.NewBuilder(ctx)
-	_, err = builder.BuildImageWithDefaults(workflow.ID, jsonWorkflow)
-	if err != nil {
-		log.Info("Error building KogitoServerlessWorkflow into Workflow: ", "message", err.Error())
-	}
-	return ctrl.Result{}, nil
+	buildable := builder.NewBuildable(r.Client, ctx)
+	build, err := buildable.HandleSwfBuild(workflow.ID, jsonWorkflow, req)
+	log.Info(string(build.Spec.BuildPhase))
+	log.Info(string(build.Status.BuildPhase))
+	return ctrl.Result{Requeue: true}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *KogitoServerlessWorkflowReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv08.KogitoServerlessWorkflow{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Pod{}).
+		Watches(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
+			IsController: true,
+			OwnerType:    &corev1.Pod{}}).
 		Complete(r)
 }
