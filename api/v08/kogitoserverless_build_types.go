@@ -22,39 +22,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:object:root=true
-// +kubebuilder:object:generate=true
 // KogitoServerlessBuildSpec defines the desired state of KogitoServerlessBuild
 type KogitoServerlessBuildSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	SwfName         string         `json:"SwfName,omitempty"`
-	ImageName       string         `json:"ImageName,omitempty"`
-	PodMiddleName   string         `json:"PodMiddleName,omitempty"`
-	SourceSwf       []byte         `json:"SourceSwf,omitempty"`
-	Dockerfile      []byte         `json:"Dockerfile,omitempty"`
-	BuildPhase      api.BuildPhase `json:"BuildPhase,omitempty"`
-	metav1.TypeMeta `json:",inline"`
+	WorkflowId    string         `json:"workflowId,omitempty"`
+	ImageName     string         `json:"imageName,omitempty"`
+	PodMiddleName string         `json:"podMiddleName,omitempty"`
+	Dockerfile    []byte         `json:"dockerfile,omitempty"`
+	BuildPhase    api.BuildPhase `json:"buildPhase,omitempty"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:object:root=true
-// +kubebuilder:object:generate=true
 // KogitoServerlessBuildStatus defines the observed state of KogitoServerlessBuild
 type KogitoServerlessBuildStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	SwfName         string                    `json:"SwfName,omitempty"`
-	Deployments     olm.DeploymentStatus      `json:"deployments"`
-	Phase           ConditionType             `json:"phase,omitempty"`
-	Applied         KogitoServerlessBuildSpec `json:"applied,omitempty"`
-	Version         string                    `json:"version,omitempty"`
-	BuildPhase      api.BuildPhase            `json:"BuildPhase,omitempty"`
-	metav1.TypeMeta `json:",inline"`
+	WorkflowId  string                    `json:"workflowId,omitempty"`
+	Deployments olm.DeploymentStatus      `json:"deployments"`
+	Phase       ConditionType             `json:"phase,omitempty"`
+	Applied     KogitoServerlessBuildSpec `json:"applied,omitempty"`
+	Version     string                    `json:"version,omitempty"`
+	BuildPhase  api.BuildPhase            `json:"buildPhase,omitempty"`
+	Builder     api.Build                 `json:"builder,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

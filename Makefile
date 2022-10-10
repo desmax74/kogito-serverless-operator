@@ -29,7 +29,7 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # kiegroup.org/kogito-serverless-operator-bundle:$VERSION and kiegroup.org/kogito-serverless-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= quay.io/mdessi/kogito-serverless-operator
+IMAGE_TAG_BASE ?= quay.io/dsalerno/kogito-serverless-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -115,9 +115,17 @@ test: manifests generate fmt vet envtest ## Run tests.
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
 
+.PHONY: build-4-debug
+build-4-debug: generate fmt vet ## Build manager binary with debug options.
+	go build -gcflags="all=-N -l" -o bin/manager main.go
+
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
+
+.PHONY: debug
+debug: build-4-debug ## Run a controller from your host from binary
+	./bin/manager
 
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.

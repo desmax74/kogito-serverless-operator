@@ -18,20 +18,14 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	apiv08 "github.com/davidesalerno/kogito-serverless-operator/api/v08"
 	"github.com/davidesalerno/kogito-serverless-operator/builder"
-	"github.com/davidesalerno/kogito-serverless-operator/converters"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // KogitoServerlessWorkflowReconciler reconciles a KogitoServerlessWorkflow object
@@ -56,7 +50,7 @@ type KogitoServerlessWorkflowReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
 func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
-	log.Info("************************************************* Reconcile KogitoServerlessWorkflowReconciler")
+	log.Info("Reconcile KogitoServerlessWorkflowReconciler")
 	// Lookup the KogitoServerlessWorkflow instance for this reconcile request
 	instance := &apiv08.KogitoServerlessWorkflow{}
 	err := r.Client.Get(ctx, req.NamespacedName, instance)
@@ -75,33 +69,15 @@ func (r *KogitoServerlessWorkflowReconciler) Reconcile(ctx context.Context, req 
 
 	//TODO handleBuilderSecret(instance, r.Client)
 	//TODO KOGITO-7840 Add validation on Workflow Metadata
-	converter := converters.NewKogitoServerlessWorkflowConverter(ctx)
-	workflow, err := converter.ToCNCFWorkflow(instance)
-	if err != nil {
-		log.Error(err, "Failed converting KogitoServerlessWorkflow into Workflow")
-		return ctrl.Result{}, err
-	}
-	jsonWorkflow, err := json.Marshal(workflow)
-	if err != nil {
-		log.Error(err, "Failed converting KogitoServerlessWorkflow into JSON")
-		return ctrl.Result{}, err
-	}
 	buildable := builder.NewBuildable(r.Client, ctx)
-	build, err := buildable.HandleSwfBuild(workflow.ID, jsonWorkflow, req)
-	log.Info(string(build.Spec.BuildPhase))
-	log.Info(string(build.Status.BuildPhase))
-	return ctrl.Result{Requeue: true}, err
+	_, err = buildable.HandleWorkflowBuild(instance.Name, req)
+
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *KogitoServerlessWorkflowReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv08.KogitoServerlessWorkflow{}).
-		Owns(&appsv1.Deployment{}).
-		Owns(&corev1.Pod{}).
-		Watches(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
-			IsController: true,
-			OwnerType:    &corev1.Pod{}}).
 		Complete(r)
 }

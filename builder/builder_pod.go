@@ -18,9 +18,8 @@ package builder
 import (
 	"context"
 	apiv08 "github.com/davidesalerno/kogito-serverless-operator/api/v08"
-	"github.com/davidesalerno/kogito-serverless-operator/constants"
 	"github.com/ricardozanini/kogito-builder/util/log"
-	"k8s.io/apimachinery/pkg/types"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -38,29 +37,35 @@ func NewBuildable(client client.Client,
 	}
 }
 
-func (buildable *Buildable) GetSwfBuild(ctx context.Context, req ctrl.Request, workflowID string, client client.Client) (apiv08.KogitoServerlessBuild, error) {
+func (buildable *Buildable) GetWorkflowBuild(ctx context.Context, req ctrl.Request, workflowID string, client client.Client) (apiv08.KogitoServerlessBuild, error) {
 	buildInstance := &apiv08.KogitoServerlessBuild{}
-	buildInstance.Spec.SwfName = workflowID
-	error := client.Get(ctx, types.NamespacedName{Namespace: req.NamespacedName.Name, Name: workflowID}, buildInstance)
+	buildInstance.Spec.WorkflowId = workflowID
+	error := client.Get(ctx, req.NamespacedName, buildInstance)
 	return *buildInstance, error
 }
 
-func (buildable *Buildable) CreateSwfBuild(workflowID string, workflowSwf []byte) (apiv08.KogitoServerlessBuild, error) {
+func (buildable *Buildable) CreateWorkflowBuild(workflowID string, targetNamespace string) (apiv08.KogitoServerlessBuild, error) {
 	buildInstance := &apiv08.KogitoServerlessBuild{}
-	buildInstance.Spec.SwfName = workflowID
-	buildInstance.Spec.SourceSwf = workflowSwf
-	buildInstance.ObjectMeta.Namespace = constants.BUILDER_NAMESPACE_DEFAULT
+	buildInstance.Spec.WorkflowId = workflowID
+	buildInstance.ObjectMeta.Namespace = targetNamespace
 	buildInstance.ObjectMeta.Name = workflowID
 	error := buildable.client.Create(buildable.Ctx, buildInstance)
 	return *buildInstance, error
 }
 
-func (buildable *Buildable) HandleSwfBuild(workflowID string, yamlWorkflow []byte, req ctrl.Request) (apiv08.KogitoServerlessBuild, error) {
-	buildInstance, error := buildable.GetSwfBuild(buildable.Ctx, req, workflowID, buildable.client)
+func (buildable *Buildable) HandleWorkflowBuild(workflowID string, req ctrl.Request) (apiv08.KogitoServerlessBuild, error) {
+	buildInstance, error := buildable.GetWorkflowBuild(buildable.Ctx, req, workflowID, buildable.client)
 	log.Info(string(buildInstance.Status.BuildPhase))
 	if error != nil {
-		return buildable.CreateSwfBuild(workflowID, yamlWorkflow)
-	} else {
+		if k8serrors.IsNotFound(error) {
+			log.Info("KogitoServerlessBuild resource not found so we are creating it!")
+			return buildable.CreateWorkflowBuild(workflowID, req.Namespace)
+		}
+		// Error reading the object - requeue the request.
+		log.Error(error, "Failed to get KogitoServerlessBuild")
 		return buildInstance, error
+
+	} else {
+		return buildInstance, nil
 	}
 }

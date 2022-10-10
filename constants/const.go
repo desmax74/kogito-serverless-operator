@@ -22,6 +22,6 @@ const (
 	BUILDER_RESOURCE_NAME_DEFAULT = "Dockerfile"
 	WORKFLOW_DEFAULT_EXTENSION    = ".sw.json"
 
-	DEFAULT_REGISTRY_REPO = "quay.io/mdessi"
+	DEFAULT_REGISTRY_REPO = "quay.io/dsalerno"
 	DEFAULT_KANIKO_SECRET = "regcred"
 )

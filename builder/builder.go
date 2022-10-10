@@ -50,7 +50,59 @@ func (b *Builder) BuildImageWithDefaults(sourceSwfName string, sourceSwf []byte)
 	return b.BuildImage(ib.Build())
 }
 
+func (b *Builder) ScheduleNewBuild(sourceSwfName string, sourceSwf []byte) (*api.Build, error) {
+	wd, _ := os.Getwd()
+	dockerFile, _ := os.ReadFile(wd + "/builder/Dockerfile")
+	ib := NewImageBuilder(sourceSwfName, sourceSwf, dockerFile)
+	ib.OnNamespace(constants.BUILDER_NAMESPACE_DEFAULT)
+	ib.WithPodMiddleName(constants.BUILDER_IMG_NAME_DEFAULT)
+	ib.WithInsecureRegistry(false)
+	ib.WithImageName(sourceSwfName + ":latest")
+	ib.WithSecret(constants.DEFAULT_KANIKO_SECRET)
+	ib.WithRegistryAddress(constants.DEFAULT_REGISTRY_REPO)
+	ib.WithTimeout(5 * time.Minute)
+	return b.BuildImage(ib.Build())
+}
+
+func (b *Builder) ReconcileBuild(build *api.Build, cli client.Client) (*api.Build, error) {
+	result, err := builder.FromBuild(build).WithClient(cli).Reconcile()
+	return result, err
+}
+
 func (r *Builder) BuildImage(b KogitoBuilder) (*api.Build, error) {
+	log := ctrllog.FromContext(r.ctx)
+	cli, err := client.NewClient(true)
+	platform := api.PlatformBuild{
+		ObjectReference: api.ObjectReference{
+			Namespace: b.Namespace,
+			Name:      b.PodMiddleName,
+		},
+		Spec: api.PlatformBuildSpec{
+			BuildStrategy:   api.BuildStrategyPod,
+			PublishStrategy: api.PlatformBuildPublishStrategyKaniko,
+			Registry: api.RegistrySpec{
+				Insecure: b.InsecureRegistry,
+				Address:  b.RegistryAddress,
+				Secret:   b.Secret,
+			},
+			Timeout: &metav1.Duration{
+				Duration: b.Timeout,
+			},
+		},
+	}
+
+	build, err := builder.NewBuild(platform, b.ImageName, b.PodMiddleName).
+		WithResource(constants.BUILDER_RESOURCE_NAME_DEFAULT, b.DockerFile).WithResource(b.SourceSwfName+constants.WORKFLOW_DEFAULT_EXTENSION, b.SourceSwf).
+		WithClient(cli).
+		Schedule()
+	if err != nil {
+		log.Error(err, err.Error())
+		return nil, err
+	}
+	return build, err
+}
+
+func (r *Builder) ScheduleBuild(b KogitoBuilder) (*api.Build, error) {
 	log := ctrllog.FromContext(r.ctx)
 	cli, err := client.NewClient(true)
 	platform := api.PlatformBuild{
