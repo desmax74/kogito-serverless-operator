@@ -2269,7 +2269,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: quay.io/dsalerno/kogito-serverless-operator:0.0.1
+        image: quay.io/mdessi/kogito-serverless-operator:0.0.1
         livenessProbe:
           httpGet:
             path: /healthz
