@@ -15,9 +15,12 @@
 package builder
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"strings"
+	"text/template"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -58,7 +61,7 @@ func NewCustomConfig(platform operatorapi.KogitoServerlessPlatform) (map[string]
 }
 
 // GetCommonConfigMap retrieves the config map with the builder common configuration information
-func GetCommonConfigMap(client client.Client) (corev1.ConfigMap, error) {
+func GetCommonConfigMap(client client.Client, placeholders CommonConfigMapPlaceholders) (corev1.ConfigMap, error) {
 
 	namespace, found := os.LookupEnv(envVarPodNamespaceName)
 
@@ -84,7 +87,7 @@ func GetCommonConfigMap(client client.Client) (corev1.ConfigMap, error) {
 		return corev1.ConfigMap{}, err
 	}
 
-	err = isValidBuilderCommonConfigMap(existingConfigMap)
+	err = isValidBuilderCommonConfigMap(&existingConfigMap, placeholders)
 	if err != nil {
 		log.Error(err, "configmap is not valid")
 		return existingConfigMap, err
@@ -95,7 +98,7 @@ func GetCommonConfigMap(client client.Client) (corev1.ConfigMap, error) {
 }
 
 // isValidBuilderCommonConfigMap  function that will verify that in the builder config maps there are the required keys, and they aren't empty
-func isValidBuilderCommonConfigMap(configMap corev1.ConfigMap) error {
+func isValidBuilderCommonConfigMap(configMap *corev1.ConfigMap, placeholders CommonConfigMapPlaceholders) error {
 
 	// Verifying that the key to hold the extension for the workflow is there and not empty
 	if len(configMap.Data[configKeyDefaultExtension]) == 0 {
@@ -111,5 +114,21 @@ func isValidBuilderCommonConfigMap(configMap corev1.ConfigMap) error {
 	if len(configMap.Data[configMap.Data[configKeyDefaultBuilderResourceName]]) == 0 {
 		return fmt.Errorf("unable to find %s key into builder config map", configMap.Data[configKeyDefaultBuilderResourceName])
 	}
+
+	// check if in the dockerfile the builderImageVersion needs to be replaced
+	dockerfile := configMap.Data[configMap.Data[configKeyDefaultBuilderResourceName]]
+	if strings.Contains(dockerfile, "{{") && strings.Contains(dockerfile, "}}") {
+		t := template.Must(template.New(resourceDockerfile).Parse(dockerfile))
+		buffer := bytes.Buffer{}
+		err := t.Execute(&buffer, placeholders)
+		if err != nil {
+			return fmt.Errorf("unable to replace placeholders into Dockerfile %s ", dockerfile)
+		}
+		configMap.Data[configMap.Data[configKeyDefaultBuilderResourceName]] = buffer.String()
+	}
 	return nil
+}
+
+type CommonConfigMapPlaceholders struct {
+	BuilderImageVersion string
 }

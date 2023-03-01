@@ -19,6 +19,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kiegroup/kogito-serverless-operator/version"
+
+	"github.com/kiegroup/kogito-serverless-operator/platform"
+
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -35,7 +39,7 @@ var _ ProfileReconciler = &developmentProfile{}
 
 const (
 	// TODO: read from the platform config. Default tag MUST align with the current operator's version. See: https://issues.redhat.com/browse/KOGITO-8675
-	defaultKogitoServerlessWorkflowDevImage = "quay.io/kiegroup/kogito-swf-builder-nightly:latest"
+	defaultKogitoServerlessWorkflowDevImage = "quay.io/kiegroup/kogito-swf-builder-nightly"
 	configMapWorkflowDefVolumeName          = "workflow-definition"
 	configMapWorkflowDefMountPath           = "/home/kogito/serverless-workflow-project/src/main/resources/workflows"
 	// quarkusDevConfigMountPath mount path for application properties file in the Workflow Quarkus Application
@@ -119,9 +123,18 @@ func (e *ensureRunningDevWorkflowReconciliationState) Do(ctx context.Context, wo
 	}
 	objs = append(objs, propsCM)
 
+	pl, errPl := platform.GetActivePlatform(ctx, e.client, workflow.Namespace)
+	if errPl != nil {
+		return ctrl.Result{RequeueAfter: requeueAfterFailure}, objs, errPl
+	}
+	imageBuilderVersion := pl.Spec.BuilderImageVersion
+	if len(imageBuilderVersion) == 0 {
+		imageBuilderVersion = version.BuilderImageVersion
+	}
+
 	deployment, _, err := e.ensurers.deployment.ensure(ctx, workflow,
 		defaultDeploymentMutateVisitor(workflow),
-		naiveApplyImageDeploymentMutateVisitor(defaultKogitoServerlessWorkflowDevImage),
+		naiveApplyImageDeploymentMutateVisitor(defaultKogitoServerlessWorkflowDevImage+":"+imageBuilderVersion),
 		mountDevConfigMapsMutateVisitor(flowDefCM.(*v1.ConfigMap), propsCM.(*v1.ConfigMap)))
 	if err != nil {
 		return ctrl.Result{RequeueAfter: requeueAfterFailure}, objs, err

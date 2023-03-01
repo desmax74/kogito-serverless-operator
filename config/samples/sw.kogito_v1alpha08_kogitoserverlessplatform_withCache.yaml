@@ -6,10 +6,12 @@ spec:
   cluster: kubernetes
   platform:
     publishStrategy: "Kaniko"
-    baseImage: quay.io/kiegroup/kogito-swf-builder-nightly:latest
+    baseImage: quay.io/kiegroup/kogito-swf-builder:latest
     registry:
       address: quay.io/kiegroup
       secret: regcred
+    builderImageVersion: 1.34
     PublishStrategyOptions:
       KanikoBuildCacheEnabled: "true"
+
 

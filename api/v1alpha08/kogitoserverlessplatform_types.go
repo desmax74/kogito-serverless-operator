@@ -86,6 +86,8 @@ type KogitoServerlessPlatformSpec struct {
 	BuildPlatform api.PlatformBuildSpec `json:"platform,omitempty"`
 	// Configuration list of configuration properties to be attached to all the Workflow built from this Platform
 	Configuration ConfigurationSpec `json:"configuration,omitempty"`
+	// Builder image version, by default aligned with the Kogito community version
+	BuilderImageVersion string `json:"builderImageVersion,omitempty"`
 }
 
 // PlatformPhase is the phase of a Platform

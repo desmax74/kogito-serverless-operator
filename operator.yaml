@@ -466,6 +466,10 @@ spec:
                     format: duration
                     type: string
                 type: object
+              builderImageVersion:
+                description: Builder image version, by default aligned with the Kogito
+                  community version
+                type: string
               cluster:
                 description: Cluster what kind of cluster you're running (ie, plain
                   Kubernetes or OpenShift)
@@ -685,6 +689,10 @@ spec:
                     format: duration
                     type: string
                 type: object
+              builderImageVersion:
+                description: Builder image version, by default aligned with the Kogito
+                  community version
+                type: string
               cluster:
                 description: Cluster what kind of cluster you're running (ie, plain
                   Kubernetes or OpenShift)
@@ -2865,9 +2873,9 @@ apiVersion: v1
 data:
   DEFAULT_BUILDER_RESOURCE_NAME: Dockerfile
   DEFAULT_WORKFLOW_EXTENSION: .sw.json
-  Dockerfile: "FROM quay.io/kiegroup/kogito-swf-builder-nightly:latest AS builder\n
-    \ \n  # Copy from build context to skeleton resources project\nCOPY * ./resources/\n\nRUN
-    /home/kogito/launch/build-app.sh ./resources\n  \n  #=============================\n
+  Dockerfile: "FROM quay.io/kiegroup/kogito-swf-builder:{{.BuilderImageVersion}} AS
+    builder\n  \n  # Copy from build context to skeleton resources project\nCOPY *
+    ./resources/\n\nRUN /home/kogito/launch/build-app.sh ./resources\n  \n  #=============================\n
     \ # Runtime Run\n  #=============================\nFROM registry.access.redhat.com/ubi8/openjdk-11:latest\n\nENV
     LANG='en_US.UTF-8' LANGUAGE='en_US:en'\n  \n  # We make four distinct layers so
     if there are application changes the library layers can be re-used\nCOPY --from=builder

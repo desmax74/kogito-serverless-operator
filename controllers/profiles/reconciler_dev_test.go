@@ -18,6 +18,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/kiegroup/kogito-serverless-operator/version"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -36,7 +38,9 @@ func Test_recoverFromFailureNoDeployment(t *testing.T) {
 
 	workflow.Status.Condition = operatorapi.FailedConditionType
 	client := test.NewKogitoClientBuilder().WithRuntimeObjects(workflow).Build()
-
+	platform := cretePlatform("../../config/samples/"+test.KogitoServerlessPlatformWithCacheYamlCR, workflow.Namespace)
+	errCreatePlatform := client.Create(context.Background(), platform)
+	assert.Nil(t, errCreatePlatform)
 	reconciler := newDevProfileReconciler(client, &logger)
 
 	// we are in failed state and have no objects
@@ -79,13 +83,16 @@ func Test_newDevProfile(t *testing.T) {
 	client := test.NewKogitoClientBuilder().WithRuntimeObjects(workflow).Build()
 	devReconciler := newDevProfileReconciler(client, &logger)
 
+	platform := cretePlatform("../../config/samples/"+test.KogitoServerlessPlatformWithCacheYamlCR, workflow.Namespace)
+	errCreatePlatform := client.Create(context.Background(), platform)
+	assert.Nil(t, errCreatePlatform)
 	result, err := devReconciler.Reconcile(context.TODO(), workflow)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
 	// check if the objects have been created
 	deployment := test.MustGetDeployment(t, client, workflow)
-	assert.Equal(t, defaultKogitoServerlessWorkflowDevImage, deployment.Spec.Template.Spec.Containers[0].Image)
+	assert.Equal(t, defaultKogitoServerlessWorkflowDevImage+":"+version.BuilderImageVersion, deployment.Spec.Template.Spec.Containers[0].Image)
 
 	defCM := test.MustGetConfigMap(t, client, workflow)
 	assert.NotEmpty(t, defCM.Data[workflow.Name+kogitoWorkflowJSONFileExt])
@@ -138,5 +145,12 @@ func Test_newDevProfile(t *testing.T) {
 	assert.NotNil(t, result)
 
 	deployment = test.MustGetDeployment(t, client, workflow)
-	assert.Equal(t, defaultKogitoServerlessWorkflowDevImage, deployment.Spec.Template.Spec.Containers[0].Image)
+	assert.Equal(t, defaultKogitoServerlessWorkflowDevImage+":"+version.BuilderImageVersion, deployment.Spec.Template.Spec.Containers[0].Image)
+}
+
+func cretePlatform(path string, namespace string) clientruntime.Object {
+	platform := test.GetKogitoServerlessPlatform(path)
+	platform.Status.Phase = operatorapi.PlatformPhaseReady
+	platform.Namespace = namespace
+	return platform
 }

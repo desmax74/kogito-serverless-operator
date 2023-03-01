@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kiegroup/kogito-serverless-operator/version"
+
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/kiegroup/kogito-serverless-operator/platform"
@@ -74,15 +76,6 @@ func (r *KogitoServerlessBuildReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	phase := build.Status.BuildPhase
-	if r.commonBuildConf.Data == nil {
-		r.commonBuildConf, err = builder.GetCommonConfigMap(r.Client)
-	}
-
-	if err != nil {
-		return ctrl.Result{}, errors.NewNotFound(schema.GroupResource{
-			Resource: "ConfigMap",
-		}, "builder-config")
-	}
 	// Fetch the Platform build with the information we need for the build
 	pl, err := platform.GetActivePlatform(ctx, r.Client, req.Namespace)
 	if err != nil {
@@ -96,6 +89,20 @@ func (r *KogitoServerlessBuildReconciler) Reconcile(ctx context.Context, req ctr
 		// Error reading the object - requeue the request.
 		log.Error(err, fmt.Sprintf("Error retrieving the active platfor. Workflow %s build cannot be performed!", build.Spec.WorkflowId))
 		return reconcile.Result{RequeueAfter: 60 * time.Second}, err
+	}
+
+	if r.commonBuildConf.Data == nil {
+		if len(pl.Spec.BuilderImageVersion) == 0 {
+			pl.Spec.BuilderImageVersion = version.BuilderImageVersion
+		}
+		placeholders := builder.CommonConfigMapPlaceholders{BuilderImageVersion: pl.Spec.BuilderImageVersion}
+		r.commonBuildConf, err = builder.GetCommonConfigMap(r.Client, placeholders)
+	}
+
+	if err != nil {
+		return ctrl.Result{}, errors.NewNotFound(schema.GroupResource{
+			Resource: "ConfigMap",
+		}, "builder-config")
 	}
 
 	customConfig, err := builder.NewCustomConfig(*pl)

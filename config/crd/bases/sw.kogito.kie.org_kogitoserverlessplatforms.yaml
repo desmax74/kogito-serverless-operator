@@ -149,6 +149,10 @@ spec:
                     format: duration
                     type: string
                 type: object
+              builderImageVersion:
+                description: Builder image version, by default aligned with the Kogito
+                  community version
+                type: string
               cluster:
                 description: Cluster what kind of cluster you're running (ie, plain
                   Kubernetes or OpenShift)
@@ -368,6 +372,10 @@ spec:
                     format: duration
                     type: string
                 type: object
+              builderImageVersion:
+                description: Builder image version, by default aligned with the Kogito
+                  community version
+                type: string
               cluster:
                 description: Cluster what kind of cluster you're running (ie, plain
                   Kubernetes or OpenShift)

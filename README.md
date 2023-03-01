@@ -154,6 +154,16 @@ kubectl delete namespace kogito-workflows
 make undeploy
 ```
 
+## DevMode
+
+#### Override Builder image version
+
+By default the builder image use a stable version declare in the version.go aligned to the Kogito version
+this version can be override adding in the paltform CR the folowing item:
+```sh
+builderImageVersion: <version>
+```
+
 ## Use local scripts
 
 You can find some scripts in the [hack](./hack/local/) folder.
