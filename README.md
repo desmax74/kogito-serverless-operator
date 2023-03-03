@@ -154,7 +154,7 @@ kubectl delete namespace kogito-workflows
 make undeploy
 ```
 
-## DevMode
+## Use Workflow Development Mode
 
 #### Override Builder image version
 
