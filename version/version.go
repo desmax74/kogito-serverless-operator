@@ -13,7 +13,7 @@
 // limitations under the License.
 package version
 
-var (
+const (
 	// Version - current version
 	BuilderImageVersion = "1.34"
 )
