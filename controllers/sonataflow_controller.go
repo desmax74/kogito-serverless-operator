@@ -17,6 +17,9 @@ package controllers
 import (
 	"context"
 
+	"fmt"
+	"strings"
+
 	"k8s.io/klog/v2"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -79,6 +82,7 @@ func (r *SonataFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
+		r.Recorder.Event(workflow, corev1.EventTypeWarning, "SonataFlowReconcilerError", fmt.Sprintf("Error: %v", err))
 		klog.V(log.E).ErrorS(err, "Failed to get SonataFlow")
 		return ctrl.Result{}, err
 	}
@@ -89,10 +93,10 @@ func (r *SonataFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return reconcile.Result{}, nil
 	}
 
-	return profiles.NewReconciler(r.Client, r.Config, workflow).Reconcile(ctx, workflow)
+	return profiles.NewReconciler(r.Client, r.Config, r.Recorder, workflow).Reconcile(ctx, workflow)
 }
 
-func platformEnqueueRequestsFromMapFunc(c client.Client, p *operatorapi.SonataFlowPlatform) []reconcile.Request {
+func platformEnqueueRequestsFromMapFunc(c client.Client, p *operatorapi.SonataFlowPlatform, recorder record.EventRecorder) []reconcile.Request {
 	var requests []reconcile.Request
 
 	if p.Status.Phase == operatorapi.PlatformPhaseReady {
@@ -106,6 +110,7 @@ func platformEnqueueRequestsFromMapFunc(c client.Client, p *operatorapi.SonataFl
 
 		if err := c.List(context.Background(), list, opts...); err != nil {
 			klog.V(log.E).ErrorS(err, "Failed to list workflows")
+			recorder.Event(list, corev1.EventTypeWarning, "SonataFlowReconcilerSetupWithManagerError", "Failed to list workflows")
 			return requests
 		}
 
@@ -125,6 +130,39 @@ func platformEnqueueRequestsFromMapFunc(c client.Client, p *operatorapi.SonataFl
 	return requests
 }
 
+func configMapEnqueueRequestsFromMapFunc(c client.Client, cm *corev1.ConfigMap, recorder record.EventRecorder) []reconcile.Request {
+	var requests []reconcile.Request
+
+	if strings.HasPrefix(cm.Name, "sonataflow") {
+		list := &operatorapi.SonataFlowList{}
+
+		// Do global search in case of global operator (it may be using a global platform)
+		var opts []client.ListOption
+		if !platform.IsCurrentOperatorGlobal() {
+			klog.V(log.E).InfoS(fmt.Sprintf("ConfigMapEnqueueRequestsFromMapFunc ConfigMap name :%s namespace: %s resourceVersion: %s", cm.Name, cm.Namespace, cm.ResourceVersion))
+			opts = append(opts, client.InNamespace(cm.Namespace))
+		}
+
+		if err := c.List(context.Background(), list, opts...); err != nil {
+			klog.V(log.E).ErrorS(err, "Failed to list workflows")
+			recorder.Event(list, corev1.EventTypeWarning, "SonataFlowReconcilerSetupWithManagerError", "Failed to list workflows")
+			return requests
+		}
+
+		for _, workflow := range list.Items {
+			cond := workflow.Status.GetTopLevelCondition()
+			klog.V(log.I).InfoS("ConfigMap ready, wake-up workflow: condition:%s", "configMap", "workflowName", "condition", cm.Name, workflow.Name, cond)
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: workflow.Namespace,
+					Name:      workflow.Name,
+				},
+			})
+		}
+	}
+	return requests
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *SonataFlowReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -139,7 +177,15 @@ func (r *SonataFlowReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				klog.V(log.E).InfoS("Failed to retrieve workflow list. Type assertion failed", "assertion", a)
 				return []reconcile.Request{}
 			}
-			return platformEnqueueRequestsFromMapFunc(mgr.GetClient(), platform)
+			return platformEnqueueRequestsFromMapFunc(mgr.GetClient(), platform, mgr.GetEventRecorderFor("workflow-controller"))
+		})).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(func(c context.Context, a client.Object) []reconcile.Request {
+			configMap, ok := a.(*corev1.ConfigMap)
+			if !ok {
+				klog.V(log.E).InfoS("type assertion failed:", "typeAssertion", a)
+				return []reconcile.Request{}
+			}
+			return configMapEnqueueRequestsFromMapFunc(mgr.GetClient(), configMap, mgr.GetEventRecorderFor("workflow-controller"))
 		})).
 		Complete(r)
 }

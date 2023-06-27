@@ -22,6 +22,8 @@ import (
 
 	"k8s.io/klog/v2"
 
+	"k8s.io/client-go/tools/record"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kiegroup/kogito-serverless-operator/workflowproj"
@@ -77,9 +79,10 @@ func (d developmentProfile) GetProfile() metadata.ProfileType {
 	return metadata.DevProfile
 }
 
-func newDevProfileReconciler(client client.Client, config *rest.Config) ProfileReconciler {
+func newDevProfileReconciler(client client.Client, config *rest.Config, recorder record.EventRecorder) ProfileReconciler {
 	support := &stateSupport{
-		client: client,
+		client:   client,
+		recorder: recorder,
 	}
 
 	var ensurers *devProfileObjectEnsurers
