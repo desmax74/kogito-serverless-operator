@@ -220,7 +220,6 @@ func (h *followBuildStatusReconciliationState) Do(ctx context.Context, workflow 
 		if workflow.Status.GetCondition(api.BuiltConditionType).IsFalse() &&
 			workflow.Status.GetCondition(api.BuiltConditionType).Reason == api.WaitingForWrongConfigurationReason {
 			restartBuild(ctx, h.stateSupport, workflow, activePlatform, build)
-			h.client.Status().Update(ctx, build)
 			//h.getAndUpdateStatusWorkFlow(ctx, workflow)
 			//h.performStatusUpdate(ctx, workflow)
 		} else {
