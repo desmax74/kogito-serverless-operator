@@ -88,17 +88,17 @@ type stateSupport struct {
 }
 
 // performStatusUpdate updates the SonataFlow Status conditions
-func (s stateSupport) performStatusUpdate(ctx context.Context, workflow *operatorapi.SonataFlow) error {
+func (s stateSupport) performStatusUpdate(ctx context.Context, workflow *operatorapi.SonataFlow) (bool, error) {
 	workflow.Status.ObservedGeneration = workflow.Generation
 	if err := s.client.Status().Update(ctx, workflow); err != nil {
 		klog.V(log.E).ErrorS(err, "Failed to update Workflow status")
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 // performStatusUpdate updates the SonataFlow Status conditions on the last version available
-func (s stateSupport) getAndUpdateStatusWorkFlow(ctx context.Context, workflow *operatorapi.SonataFlow) (bool, error) {
+/*func (s stateSupport) getAndUpdateStatusWorkFlow(ctx context.Context, workflow *operatorapi.SonataFlow) (bool, error) {
 	freshWorkFlow := operatorapi.SonataFlow{}
 
 	err := s.client.Get(ctx, client.ObjectKeyFromObject(workflow), &freshWorkFlow)
@@ -110,7 +110,7 @@ func (s stateSupport) getAndUpdateStatusWorkFlow(ctx context.Context, workflow *
 		return false, err
 	}
 	return true, nil
-}
+}*/
 
 func getAndUpdateStatusBuild(ctx context.Context, build *operatorapi.SonataFlowBuild, support *stateSupport) error {
 	freshBuild := operatorapi.SonataFlowBuild{}
@@ -230,7 +230,6 @@ func getActivePlatform(ctx context.Context, workflow *operatorapi.SonataFlow, cl
 			msg := "No active Platform for namespace %s so the workflow cannot be built."
 			stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowPlatformError", fmt.Sprintf(msg, workflow.Namespace))
 			workflow.Status.Manager().MarkFalse(api.RunningConditionType, api.WaitingForPlatformReason, msg, workflow.Namespace)
-			_, err = stateSupport.getAndUpdateStatusWorkFlow(ctx, workflow)
 		}
 		// Recovery isn't possible just signal on events and on log
 		klog.V(log.E).ErrorS(err, "Failed to get active platform")
@@ -260,16 +259,17 @@ func handleMultipleBuildsAfterError(ctx context.Context, build *operatorapi.Sona
 		build.Status.BuildAttemptsAfterError = 1
 	}
 
-	msg := fmt.Sprintf("Build attempt number %v is in failed state", build.Status.BuildAttemptsAfterError)
+	//msg := fmt.Sprintf("Build attempt number %v is in failed state", build.Status.BuildAttemptsAfterError)
 	if build.Status.BuildAttemptsAfterError < activePlatform.Spec.BuildPlatform.BuildAttemptsAfterError {
 		build.Status.BuildAttemptsAfterError = build.Status.BuildAttemptsAfterError + 1
+		/*updateErr := stateSupport.client.Status().Update(ctx, build)
 		updateErr := stateSupport.client.Status().Update(ctx, build)
 		klog.V(log.I).Info(msg)
 		stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowBuildError", msg)
 		if updateErr != nil {
 			klog.V(log.I).Info(fmt.Sprintf("Error updating Build: %v", updateErr))
 			stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "Error updating Build", fmt.Sprintf("Error updating Build: %v", updateErr))
-		}
+		}*/
 	} else {
 		//We have surpassed the number of failed builds configured, we are going to change the condition to WaitingForChanges from the user
 		msgFinal := fmt.Sprintf(" Workflow %s build is in failed state, stop to build after %v attempts and waiting to fix the problem. Try to fix the problem or delete the SonataFlowBuild to restart a new build cycle. error %s", workflow.Name, build.Status.BuildAttemptsAfterError, build.Status.Error)
