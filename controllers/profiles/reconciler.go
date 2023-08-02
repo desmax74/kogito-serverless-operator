@@ -88,14 +88,13 @@ type stateSupport struct {
 }
 
 // performStatusUpdate updates the SonataFlow Status conditions
-func (s stateSupport) performStatusUpdate(ctx context.Context, workflow *operatorapi.SonataFlow) (bool, error) {
-	var err error
+func (s stateSupport) performStatusUpdate(ctx context.Context, workflow *operatorapi.SonataFlow) error {
 	workflow.Status.ObservedGeneration = workflow.Generation
-	if err = s.client.Status().Update(ctx, workflow); err != nil {
+	if err := s.client.Status().Update(ctx, workflow); err != nil {
 		klog.V(log.E).ErrorS(err, "Failed to update Workflow status")
-		return false, err
+		return err
 	}
-	return true, err
+	return nil
 }
 
 // performStatusUpdate updates the SonataFlow Status conditions on the last version available
@@ -243,27 +242,20 @@ func getActivePlatform(ctx context.Context, workflow *operatorapi.SonataFlow, cl
 func restartBuild(ctx context.Context, stateSupport *stateSupport, workflow *operatorapi.SonataFlow, activePlatform *operatorapi.SonataFlowPlatform, build *operatorapi.SonataFlowBuild) {
 	if activePlatform.Generation > workflow.Status.ObservedPlatformGeneration {
 		workflow.Status.Manager().MarkFalse(api.BuiltConditionType, api.BuildFailedReason, "PlatformUpdated", workflow.Namespace)
-		stateSupport.client.Status().Update(ctx, workflow)
 	}
 	// mark to restart
 	build.Status.BuildPhase = operatorapi.BuildPhaseNone
 	build.Status.BuildAttemptsAfterError = 0
 	build.Status.InnerBuild = runtime.RawExtension{}
-	restartErr := getAndUpdateStatusBuild(ctx, build, stateSupport)
+	//restartErr := getAndUpdateStatusBuild(ctx, build, stateSupport)
+	restartErr := stateSupport.client.Status().Update(ctx, build)
 	if restartErr != nil {
-		buildManager := builder.NewSonataFlowBuildManager(ctx, stateSupport.client)
-		freshBuild, restartErr := buildManager.GetOrCreateBuildWithPlatform(activePlatform, workflow)
-		freshBuild.Status.BuildPhase = operatorapi.BuildPhaseNone
-		freshBuild.Status.BuildAttemptsAfterError = 0
-		freshBuild.Status.InnerBuild = runtime.RawExtension{}
-		restartErr = getAndUpdateStatusBuild(ctx, freshBuild, stateSupport)
-		if restartErr != nil {
-			klog.V(log.E).ErrorS(restartErr, "Error on Restart Build updae status")
-		}
+		klog.V(log.E).ErrorS(restartErr, "Error on Restart Build update status")
 	}
 }
 
 func handleMultipleBuildsAfterError(ctx context.Context, build *operatorapi.SonataFlowBuild, workflow *operatorapi.SonataFlow, stateSupport stateSupport, activePlatform operatorapi.SonataFlowPlatform) bool {
+	result := false
 	if build.Status.BuildAttemptsAfterError == 0 {
 		build.Status.BuildAttemptsAfterError = 1
 	}
@@ -285,13 +277,9 @@ func handleMultipleBuildsAfterError(ctx context.Context, build *operatorapi.Sona
 		stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowBuildError", msgFinal)
 		workflow.Status.Manager().MarkFalse(api.BuiltConditionType, api.WaitingForWrongConfigurationReason, "WaitingForConfigChanges")
 		workflow.Status.ObservedPlatformGeneration = activePlatform.Generation
-		_, updateErr := stateSupport.getAndUpdateStatusWorkFlow(ctx, workflow)
-		if updateErr != nil {
-			klog.V(log.E).ErrorS(updateErr, "failed to update status update workflow")
-		}
-		return true
+		result = true
 	}
-	return false
+	return result
 }
 
 // mountDevConfigMapsMutateVisitor mounts the required configMaps in the Workflow Dev Deployment

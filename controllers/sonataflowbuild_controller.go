@@ -86,14 +86,12 @@ func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	//phase := build.Status.BuildPhase
 	if build.Status.BuildPhase == operatorapi.BuildPhaseNone {
 		if err = buildManager.Schedule(build); err != nil {
 			r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowBuildManagerScheduleError", fmt.Sprintf("Error: %v", err))
 			return ctrl.Result{}, err
 		}
-		_, err := r.manageStatusUpdate(ctx, build)
-		return ctrl.Result{RequeueAfter: requeueAfterForNewBuild}, err
+		return ctrl.Result{RequeueAfter: requeueAfterForNewBuild}, r.Status().Update(ctx, build)
 		// TODO: this smells, why not just else? review in the future: https://issues.redhat.com/browse/KOGITO-8785
 	} else if build.Status.BuildPhase != operatorapi.BuildPhaseSucceeded && build.Status.BuildPhase != operatorapi.BuildPhaseError && build.Status.BuildPhase != operatorapi.BuildPhaseFailed {
 		beforeReconcilePhase := build.Status.BuildPhase
@@ -102,8 +100,8 @@ func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			return ctrl.Result{}, err
 		}
 		if beforeReconcilePhase != build.Status.BuildPhase {
-			_, err := r.manageStatusUpdate(ctx, build)
-			if err != nil {
+			//_, err := r.manageStatusUpdate(ctx, build)
+			if err = r.Status().Update(ctx, build); err != nil {
 				r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowStatusUpdateError 4", fmt.Sprintf("Error: %v", err))
 				return ctrl.Result{}, err
 			}
@@ -111,25 +109,6 @@ func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{RequeueAfter: requeueAfterForBuildRunning}, nil
 	}
 	return ctrl.Result{}, nil
-}
-
-func (r *SonataFlowBuildReconciler) manageStatusUpdate(ctx context.Context, instance *operatorapi.SonataFlowBuild) (bool, error) {
-	freshBuild := operatorapi.SonataFlowBuild{}
-	err := r.Get(ctx, client.ObjectKeyFromObject(instance), &freshBuild)
-	freshBuild.Status = instance.Status
-	if freshBuild.Name != "" {
-		if err = r.Status().Update(ctx, &freshBuild); err != nil {
-			klog.V(log.E).ErrorS(err, "Failed to update Build status")
-			r.Recorder.Event(&freshBuild, corev1.EventTypeWarning, "SonataFlowStatusUpdateError 3", fmt.Sprintf("Error: %v", err))
-			return false, err
-		} else {
-			r.Recorder.Event(instance, corev1.EventTypeNormal, "Updated", fmt.Sprintf("Updated buildphase to  %s", instance.Status.BuildPhase))
-		}
-	} else {
-		return false, nil
-	}
-	return true, nil
-
 }
 
 // SetupWithManager sets up the controller with the Manager.
