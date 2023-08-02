@@ -110,7 +110,7 @@ func (h *newBuilderReconciliationState) CanReconcile(workflow *operatorapi.Sonat
 }
 
 func (h *newBuilderReconciliationState) Do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
-	h.stateSupport.logger.Info("NewBuilderReconciliationState Do")
+	klog.V(log.I).Info("NewBuilderReconciliationState Do")
 	//check the platform for the first time, we are here because in the CanReconcile the top level is unknow or we are WaitingForPlatform
 	activePlatform, build, cm, err := getContextObjects(ctx, workflow, h.stateSupport)
 	if activePlatform == nil {
@@ -146,7 +146,7 @@ func (h *newBuilderReconciliationState) Do(ctx context.Context, workflow *operat
 			workflow.Status.Manager().MarkFalse(api.BuiltConditionType, api.BuildIsRunningReason, "")
 			workflow.Status.Manager().MarkFalse(api.RunningConditionType, api.WaitingForBuildReason, "")
 		}
-		h.stateSupport.logger.Info("NewBuilderReconciliationState Do Perform StatusUpdate")
+		klog.V(log.I).Info("NewBuilderReconciliationState Do Perform StatusUpdate")
 		_, err := h.performStatusUpdate(ctx, workflow)
 		return ctrl.Result{RequeueAfter: requeueAfterStartingBuild}, nil, err
 	} else {
@@ -156,7 +156,7 @@ func (h *newBuilderReconciliationState) Do(ctx context.Context, workflow *operat
 			workflow.Status.ObservedPlatformGeneration = activePlatform.Generation
 			restartBuild(ctx, h.stateSupport, workflow, activePlatform, build)
 			if err != nil {
-				h.logger.Error(err, "Error updating workflow status newBuilderReconciliationState")
+				klog.V(log.E).ErrorS(err, "Error updating workflow status newBuilderReconciliationState")
 			}
 			_, err := h.performStatusUpdate(ctx, workflow)
 			return ctrl.Result{RequeueAfter: requeueAfterStartingBuild}, nil, err
@@ -185,7 +185,7 @@ func (h *followBuildStatusReconciliationState) CanReconcile(workflow *operatorap
 
 func (h *followBuildStatusReconciliationState) Do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
 	// Let's retrieve the build to check the status
-	h.stateSupport.logger.Info("FollowBuildStatusReconciliationState Do")
+	klog.V(log.I).Info("FollowBuildStatusReconciliationState Do")
 	buildManager := builder.NewSonataFlowBuildManager(ctx, h.client)
 	build, err := buildManager.GetOrCreateBuild(workflow)
 	if err != nil {
@@ -241,7 +241,7 @@ func (h *deployWorkflowReconciliationState) CanReconcile(workflow *operatorapi.S
 }
 
 func (h *deployWorkflowReconciliationState) Do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
-	h.stateSupport.logger.Info("DeployWorkflowReconciliationState Do")
+	klog.V(log.I).Info("DeployWorkflowReconciliationState Do")
 	pl, err := platform.GetActivePlatform(ctx, h.client, workflow.Namespace)
 	if err != nil {
 		msg := "No active Platform for namespace %s so the resWorkflowDef cannot be deployed. Waiting for an active platform"
@@ -331,7 +331,7 @@ func (h *deployWorkflowReconciliationState) handleObjects(ctx context.Context, w
 		// TODO: very naive, the state should observe the Deployment's status: https://issues.redhat.com/browse/KOGITO-8524
 
 		workflow.Status.Manager().MarkTrue(api.RunningConditionType)
-		h.stateSupport.logger.Info("1010101001")
+		klog.V(log.I).Info("1010101001")
 		if _, err := h.performStatusUpdate(ctx, workflow); err != nil {
 			return reconcile.Result{Requeue: false}, nil, err
 		}

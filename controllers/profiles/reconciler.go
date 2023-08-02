@@ -218,7 +218,7 @@ func restartBuild(ctx context.Context, stateSupport *stateSupport, workflow *ope
 	build.Status.BuildPhase = operatorapi.BuildPhaseNone
 	build.Status.BuildAttemptsAfterError = 0
 	build.Status.InnerBuild = runtime.RawExtension{}
-	stateSupport.logger.Info("Update workflow build in restartBuild")
+	klog.V(log.I).Info("Update workflow build in restartBuild")
 	restartErr := stateSupport.client.Status().Update(ctx, build)
 	if restartErr != nil {
 		klog.V(log.E).ErrorS(restartErr, "Error on Restart Build update status")

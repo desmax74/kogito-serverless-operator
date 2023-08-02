@@ -68,14 +68,9 @@ const (
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-<<<<<<< HEAD
-=======
-	log := ctrllog.FromContext(ctx)
-	log.Info("SonataFlowBuildReconciler")
->>>>>>> f65d598 (test)
 	build := &operatorapi.SonataFlowBuild{}
 	err := r.Client.Get(ctx, req.NamespacedName, build)
-	log.Info("SonataFlowBuildReconciler Build Get")
+	klog.V(log.I).Info("SonataFlowBuildReconciler Build Get")
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -92,28 +87,28 @@ func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	log.Info("SonataFlowBuildReconciler Build Get")
+	klog.V(log.I).Info("SonataFlowBuildReconciler Build Get")
 	if build.Status.BuildPhase == operatorapi.BuildPhaseNone {
-		log.Info("SonataFlowBuildReconciler Schedule Build")
+		klog.V(log.I).Info("SonataFlowBuildReconciler Schedule Build")
 		if err = buildManager.Schedule(build); err != nil {
 			r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowBuildManagerScheduleError", fmt.Sprintf("Error: %v", err))
 			return ctrl.Result{}, err
 		}
-		log.Info("SonataFlowBuildReconciler Schedule Build and update")
+		klog.V(log.I).Info("SonataFlowBuildReconciler Schedule Build and update")
 		err := r.Status().Update(ctx, build) //@TODO
-		log.Info(fmt.Sprintf("err: %v", err))
+		klog.V(log.I).Info(fmt.Sprintf("err: %v", err))
 		return ctrl.Result{RequeueAfter: requeueAfterForNewBuild}, nil
 		// TODO: this smells, why not just else? review in the future: https://issues.redhat.com/browse/KOGITO-8785
 	} else if build.Status.BuildPhase != operatorapi.BuildPhaseSucceeded && build.Status.BuildPhase != operatorapi.BuildPhaseError && build.Status.BuildPhase != operatorapi.BuildPhaseFailed {
 		beforeReconcilePhase := build.Status.BuildPhase
-		log.Info("SonataFlowBuildReconciler buildmanager reconcile")
+		klog.V(log.I).Info("SonataFlowBuildReconciler buildmanager reconcile")
 		if err = buildManager.Reconcile(build); err != nil {
 			r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowBuildManagerReconcileError", fmt.Sprintf("Error: %v", err))
 			return ctrl.Result{}, err
 		}
 		if beforeReconcilePhase != build.Status.BuildPhase {
 			r.Recorder.Event(build, corev1.EventTypeNormal, "SonataFlowBuildReconciler update build ", "update")
-			log.Info("SonataFlowBuildReconciler Update")
+			klog.V(log.I).Info("SonataFlowBuildReconciler Update")
 			if err = r.Status().Update(ctx, build); err != nil {
 				r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowStatusUpdateError", fmt.Sprintf("Error: %v", err))
 				return ctrl.Result{}, err
