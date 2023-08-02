@@ -75,6 +75,7 @@ func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 >>>>>>> f65d598 (test)
 	build := &operatorapi.SonataFlowBuild{}
 	err := r.Client.Get(ctx, req.NamespacedName, build)
+	log.Info("SonataFlowBuildReconciler Build Get")
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -91,23 +92,30 @@ func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
+	log.Info("SonataFlowBuildReconciler Build Get")
 	if build.Status.BuildPhase == operatorapi.BuildPhaseNone {
+		log.Info("SonataFlowBuildReconciler Schedule Build")
 		if err = buildManager.Schedule(build); err != nil {
 			r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowBuildManagerScheduleError", fmt.Sprintf("Error: %v", err))
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: requeueAfterForNewBuild}, r.Status().Update(ctx, build)
+		log.Info("SonataFlowBuildReconciler Schedule Build and update")
+		err := r.Status().Update(ctx, build) //@TODO
+		log.Info(fmt.Sprintf("err: %v", err))
+		return ctrl.Result{RequeueAfter: requeueAfterForNewBuild}, nil
 		// TODO: this smells, why not just else? review in the future: https://issues.redhat.com/browse/KOGITO-8785
 	} else if build.Status.BuildPhase != operatorapi.BuildPhaseSucceeded && build.Status.BuildPhase != operatorapi.BuildPhaseError && build.Status.BuildPhase != operatorapi.BuildPhaseFailed {
 		beforeReconcilePhase := build.Status.BuildPhase
+		log.Info("SonataFlowBuildReconciler buildmanager reconcile")
 		if err = buildManager.Reconcile(build); err != nil {
 			r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowBuildManagerReconcileError", fmt.Sprintf("Error: %v", err))
 			return ctrl.Result{}, err
 		}
 		if beforeReconcilePhase != build.Status.BuildPhase {
-			r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowBuildReconciler update build ", "update")
+			r.Recorder.Event(build, corev1.EventTypeNormal, "SonataFlowBuildReconciler update build ", "update")
+			log.Info("SonataFlowBuildReconciler Update")
 			if err = r.Status().Update(ctx, build); err != nil {
-				r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowStatusUpdateError 4", fmt.Sprintf("Error: %v", err))
+				r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowStatusUpdateError", fmt.Sprintf("Error: %v", err))
 				return ctrl.Result{}, err
 			}
 		}

@@ -110,7 +110,7 @@ func (h *newBuilderReconciliationState) CanReconcile(workflow *operatorapi.Sonat
 }
 
 func (h *newBuilderReconciliationState) Do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
-	h.stateSupport.logger.Info("newBuilderReconciliationState 1111111111")
+	h.stateSupport.logger.Info("NewBuilderReconciliationState Do")
 	//check the platform for the first time, we are here because in the CanReconcile the top level is unknow or we are WaitingForPlatform
 	activePlatform, build, cm, err := getContextObjects(ctx, workflow, h.stateSupport)
 	if activePlatform == nil {
@@ -146,11 +146,7 @@ func (h *newBuilderReconciliationState) Do(ctx context.Context, workflow *operat
 			workflow.Status.Manager().MarkFalse(api.BuiltConditionType, api.BuildIsRunningReason, "")
 			workflow.Status.Manager().MarkFalse(api.RunningConditionType, api.WaitingForBuildReason, "")
 		}
-		if updatedPlatform || updatedCM {
-			h.stateSupport.logger.Info("BUILD 666666666666666")
-			restartBuild(ctx, h.stateSupport, workflow, activePlatform, build)
-		}
-		h.stateSupport.logger.Info("666666666666666")
+		h.stateSupport.logger.Info("NewBuilderReconciliationState Do Perform StatusUpdate")
 		_, err := h.performStatusUpdate(ctx, workflow)
 		return ctrl.Result{RequeueAfter: requeueAfterStartingBuild}, nil, err
 	} else {
@@ -158,26 +154,21 @@ func (h *newBuilderReconciliationState) Do(ctx context.Context, workflow *operat
 		if updatedCM || updatedPlatform {
 			workflow.Status.ObserverdDockerfile = cm.Data[builder.ConfigDockerfile]
 			workflow.Status.ObservedPlatformGeneration = activePlatform.Generation
-			h.stateSupport.logger.Info("reastar build 777777777777777")
 			restartBuild(ctx, h.stateSupport, workflow, activePlatform, build)
 			if err != nil {
 				h.logger.Error(err, "Error updating workflow status newBuilderReconciliationState")
 			}
-			h.stateSupport.logger.Info("77777777777777")
 			_, err := h.performStatusUpdate(ctx, workflow)
 			return ctrl.Result{RequeueAfter: requeueAfterStartingBuild}, nil, err
 		} else if !handleMultipleBuildsAfterError(ctx, build, workflow, *h.stateSupport, *activePlatform) {
-			h.stateSupport.logger.Info("UDPATE BUILD 22222")
 			//We have surpassed the number of failed builds configured, we are going to change the condition to WaitingForChanges from the user
 			msgFinal := fmt.Sprintf(" Build is in failed state, stop to build after %v attempts and waiting to fix the problem. Checks the pod logs and try to fix the problem on platform or on Dockerfile or delete the SonataFlowBuild to restart a new build cycle", build.Status.BuildAttemptsAfterError)
 			klog.V(log.I).InfoS(msgFinal)
 			h.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowBuild Error", msgFinal)
 			workflow.Status.ObservedPlatformGeneration = activePlatform.Generation
-			h.stateSupport.logger.Info("8888888888888")
 			_, err := h.performStatusUpdate(ctx, workflow)
 			return ctrl.Result{}, nil, err
 		}
-		h.stateSupport.logger.Info("999999999999")
 		_, err := h.performStatusUpdate(ctx, workflow)
 		return ctrl.Result{RequeueAfter: requeueAfterStartingBuild}, nil, err
 	}
@@ -194,7 +185,7 @@ func (h *followBuildStatusReconciliationState) CanReconcile(workflow *operatorap
 
 func (h *followBuildStatusReconciliationState) Do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
 	// Let's retrieve the build to check the status
-	h.stateSupport.logger.Info("followBuildStatusReconciliationState 1111111111")
+	h.stateSupport.logger.Info("FollowBuildStatusReconciliationState Do")
 	buildManager := builder.NewSonataFlowBuildManager(ctx, h.client)
 	build, err := buildManager.GetOrCreateBuild(workflow)
 	if err != nil {
@@ -202,7 +193,6 @@ func (h *followBuildStatusReconciliationState) Do(ctx context.Context, workflow 
 		klog.V(log.E).ErrorS(err, fmt.Sprintf("Failed to get or create the build for the workflow, reason: %v error: %v", build.Status.Error, err))
 		h.stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowGetOrCreateBuild Error", fmt.Sprintf("Failed to get or create the build for the workflow, reason: %v error: %v", build.Status.Error, err))
 		workflow.Status.Manager().MarkFalse(api.BuiltConditionType, api.BuildFailedReason, build.Status.Error)
-		h.stateSupport.logger.Info("33333333333333")
 		_, err := h.performStatusUpdate(ctx, workflow)
 		return ctrl.Result{RequeueAfter: requeueAfterFailure}, nil, err
 	}
@@ -218,6 +208,7 @@ func (h *followBuildStatusReconciliationState) Do(ctx context.Context, workflow 
 			//If we have finished a build and the workflow is not running, we will start the provisioning phase
 			workflow.Status.Manager().MarkTrue(api.BuiltConditionType)
 		}
+		_, err = h.performStatusUpdate(ctx, workflow)
 	} else if build.Status.BuildPhase == operatorapi.BuildPhaseFailed ||
 		build.Status.BuildPhase == operatorapi.BuildPhaseError {
 		activePlatform, err := getActivePlatform(ctx, workflow, h.client, h.stateSupport)
@@ -227,21 +218,16 @@ func (h *followBuildStatusReconciliationState) Do(ctx context.Context, workflow 
 
 		if workflow.Status.GetCondition(api.BuiltConditionType).IsFalse() &&
 			workflow.Status.GetCondition(api.BuiltConditionType).Reason == api.WaitingForWrongConfigurationReason {
-			h.stateSupport.logger.Info("Restart build 444444444444444")
 			restartBuild(ctx, h.stateSupport, workflow, activePlatform, build)
 		} else {
 			//We track the number of failed builds to see if we are in the configured range
-			h.stateSupport.logger.Info("UDPATE BUILD 111111111111")
 			if handleMultipleBuildsAfterError(ctx, build, workflow, *h.stateSupport, *activePlatform) {
-				h.stateSupport.logger.Info("4444444444444444")
 				_, err := h.performStatusUpdate(ctx, workflow)
 				return ctrl.Result{}, nil, err
 			}
 		}
 	}
-	h.stateSupport.logger.Info("55555555555555555")
-	_, err = h.performStatusUpdate(ctx, workflow)
-	return ctrl.Result{RequeueAfter: requeueWhileWaitForBuild}, nil, err
+	return ctrl.Result{RequeueAfter: requeueWhileWaitForBuild}, nil, nil
 }
 
 type deployWorkflowReconciliationState struct {
@@ -255,8 +241,8 @@ func (h *deployWorkflowReconciliationState) CanReconcile(workflow *operatorapi.S
 }
 
 func (h *deployWorkflowReconciliationState) Do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
+	h.stateSupport.logger.Info("DeployWorkflowReconciliationState Do")
 	pl, err := platform.GetActivePlatform(ctx, h.client, workflow.Namespace)
-	h.stateSupport.logger.Info("deployWorkflowReconciliationState 1111111111")
 	if err != nil {
 		msg := "No active Platform for namespace %s so the resWorkflowDef cannot be deployed. Waiting for an active platform"
 		workflow.Status.Manager().MarkFalse(api.RunningConditionType, api.WaitingForPlatformReason, msg, workflow.Namespace)
@@ -273,7 +259,6 @@ func (h *deployWorkflowReconciliationState) Do(ctx context.Context, workflow *op
 			h.stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowBuildManagerError", fmt.Sprintf("Error: %s ", err))
 			return ctrl.Result{}, nil, err
 		}
-		h.stateSupport.logger.Info("****************")
 		if err = buildManager.MarkToRestart(build); err != nil {
 			h.stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowBuildManagerError", fmt.Sprintf("Error: %s ", err))
 			return ctrl.Result{}, nil, err
@@ -281,7 +266,6 @@ func (h *deployWorkflowReconciliationState) Do(ctx context.Context, workflow *op
 
 		workflow.Status.Manager().MarkFalse(api.BuiltConditionType, api.BuildIsRunningReason, "Marked to restart")
 		workflow.Status.Manager().MarkUnknown(api.RunningConditionType, "", "")
-		h.stateSupport.logger.Info("2222222222")
 		_, err = h.performStatusUpdate(ctx, workflow)
 		return ctrl.Result{Requeue: false}, nil, err
 	}
@@ -345,20 +329,22 @@ func (h *deployWorkflowReconciliationState) handleObjects(ctx context.Context, w
 		klog.V(log.I).InfoS("Skip reconcile: Deployment and service already exists",
 			"Deployment.Namespace", existingDeployment.Namespace, "Deployment.Name", existingDeployment.Name)
 		// TODO: very naive, the state should observe the Deployment's status: https://issues.redhat.com/browse/KOGITO-8524
+
 		workflow.Status.Manager().MarkTrue(api.RunningConditionType)
 		h.stateSupport.logger.Info("1010101001")
 		if _, err := h.performStatusUpdate(ctx, workflow); err != nil {
 			return reconcile.Result{Requeue: false}, nil, err
 		}
+
 		return reconcile.Result{RequeueAfter: requeueAfterIsRunning}, objs, nil
 	}
 
 	workflow.Status.Manager().MarkFalse(api.RunningConditionType, api.WaitingForDeploymentReason, "")
-	h.stateSupport.logger.Info("1212121212")
 	if _, err := h.performStatusUpdate(ctx, workflow); err != nil {
 		h.stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowStatusUpdateError", fmt.Sprintf("Error: %s ", err))
 		return reconcile.Result{Requeue: false}, nil, err
 	}
+
 	return reconcile.Result{RequeueAfter: requeueAfterFollowDeployment}, objs, nil
 }
 
