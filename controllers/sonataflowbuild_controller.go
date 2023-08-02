@@ -68,6 +68,11 @@ const (
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+<<<<<<< HEAD
+=======
+	log := ctrllog.FromContext(ctx)
+	log.Info("SonataFlowBuildReconciler")
+>>>>>>> f65d598 (test)
 	build := &operatorapi.SonataFlowBuild{}
 	err := r.Client.Get(ctx, req.NamespacedName, build)
 	if err != nil {
@@ -100,7 +105,7 @@ func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			return ctrl.Result{}, err
 		}
 		if beforeReconcilePhase != build.Status.BuildPhase {
-			//_, err := r.manageStatusUpdate(ctx, build)
+			r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowBuildReconciler update build ", "update")
 			if err = r.Status().Update(ctx, build); err != nil {
 				r.Recorder.Event(build, corev1.EventTypeWarning, "SonataFlowStatusUpdateError 4", fmt.Sprintf("Error: %v", err))
 				return ctrl.Result{}, err
