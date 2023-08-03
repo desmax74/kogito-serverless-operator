@@ -146,7 +146,6 @@ func (h *newBuilderReconciliationState) Do(ctx context.Context, workflow *operat
 			workflow.Status.Manager().MarkFalse(api.BuiltConditionType, api.BuildIsRunningReason, "")
 			workflow.Status.Manager().MarkFalse(api.RunningConditionType, api.WaitingForBuildReason, "")
 		}
-		klog.V(log.I).Info("NewBuilderReconciliationState Do Perform StatusUpdate")
 		_, err := h.performStatusUpdate(ctx, workflow)
 		return ctrl.Result{RequeueAfter: requeueAfterStartingBuild}, nil, err
 	} else {
@@ -185,7 +184,6 @@ func (h *followBuildStatusReconciliationState) CanReconcile(workflow *operatorap
 
 func (h *followBuildStatusReconciliationState) Do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
 	// Let's retrieve the build to check the status
-	klog.V(log.I).Info("FollowBuildStatusReconciliationState Do")
 	buildManager := builder.NewSonataFlowBuildManager(ctx, h.client)
 	build, err := buildManager.GetOrCreateBuild(workflow)
 	if err != nil {
@@ -241,7 +239,6 @@ func (h *deployWorkflowReconciliationState) CanReconcile(workflow *operatorapi.S
 }
 
 func (h *deployWorkflowReconciliationState) Do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
-	klog.V(log.I).Info("DeployWorkflowReconciliationState Do")
 	pl, err := platform.GetActivePlatform(ctx, h.client, workflow.Namespace)
 	if err != nil {
 		msg := "No active Platform for namespace %s so the resWorkflowDef cannot be deployed. Waiting for an active platform"

@@ -104,7 +104,7 @@ func newDevProfileReconciler(client client.Client, config *rest.Config, recorder
 		baseReconciler: newBaseProfileReconciler(support, stateMachine),
 	}
 
-	klog.V(log.I).InfoS("Reconciling in", "profile", profile.GetProfile())
+	klog.V(log.I).Info("Reconciling in", "profile", profile.GetProfile())
 	return profile
 }
 

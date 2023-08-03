@@ -85,13 +85,14 @@ type ProfileReconciler interface {
 type stateSupport struct {
 	client   client.Client
 	recorder record.EventRecorder
+	klog     klog.Logger
 }
 
 // performStatusUpdate updates the SonataFlow Status conditions
 func (s stateSupport) performStatusUpdate(ctx context.Context, workflow *operatorapi.SonataFlow) (bool, error) {
 	workflow.Status.ObservedGeneration = workflow.Generation
 	if err := s.client.Status().Update(ctx, workflow); err != nil {
-		klog.V(log.E).ErrorS(err, "Failed to update Workflow status")
+		s.klog.V(log.E).Error(err, "Failed to update Workflow status")
 		return false, err
 	}
 	return true, nil
@@ -126,7 +127,7 @@ func (b baseReconciler) Reconcile(ctx context.Context, workflow *operatorapi.Son
 		return result, err
 	}
 	b.objects = objects
-	klog.V(log.I).InfoS("Returning from reconciliation", "Result", result)
+	b.klog.V(log.I).Info("Returning from reconciliation", "Result", result)
 	return result, err
 }
 
@@ -159,7 +160,7 @@ type reconciliationStateMachine struct {
 func (r *reconciliationStateMachine) do(ctx context.Context, workflow *operatorapi.SonataFlow) (ctrl.Result, []client.Object, error) {
 	for _, h := range r.states {
 		if h.CanReconcile(workflow) {
-			klog.V(log.I).InfoS("Found a condition to reconcile.", "Conditions", workflow.Status.Conditions)
+			klog.V(log.D).InfoS("Found a condition to reconcile.", "Conditions", workflow.Status.Conditions)
 			result, objs, err := h.Do(ctx, workflow)
 			if err != nil {
 				return result, objs, err
@@ -205,7 +206,7 @@ func getActivePlatform(ctx context.Context, workflow *operatorapi.SonataFlow, cl
 		}
 		// Recovery isn't possible just signal on events and on log
 		klog.V(log.E).ErrorS(err, "Failed to get active platform")
-		stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowStatusUpdateError 1", fmt.Sprintf("Failed to get active platform, error: %v", err))
+		stateSupport.recorder.Event(workflow, v1.EventTypeWarning, "SonataFlowStatusUpdateError", fmt.Sprintf("Failed to get active platform, error: %v", err))
 	}
 	return activePlatform, err
 }
@@ -218,7 +219,6 @@ func restartBuild(ctx context.Context, stateSupport *stateSupport, workflow *ope
 	build.Status.BuildPhase = operatorapi.BuildPhaseNone
 	build.Status.BuildAttemptsAfterError = 0
 	build.Status.InnerBuild = runtime.RawExtension{}
-	klog.V(log.I).Info("Update workflow build in restartBuild")
 	restartErr := stateSupport.client.Status().Update(ctx, build)
 	if restartErr != nil {
 		klog.V(log.E).ErrorS(restartErr, "Error on Restart Build update status")
