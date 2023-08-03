@@ -70,7 +70,6 @@ func GetNamespaceConfigMap(client client.Client, cmName string, namespace string
 		if err != nil {
 			klog.V(log.E).ErrorS(err, "Error adding fields in the configmap")
 		}
-		klog.V(log.E).ErrorS(err, "fetching configmap", "name", ConfigMapName)
 		return nil, err
 	}
 

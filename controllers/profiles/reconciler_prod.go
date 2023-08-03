@@ -323,12 +323,11 @@ func (h *deployWorkflowReconciliationState) handleObjects(ctx context.Context, w
 	objs := []client.Object{existingDeployment, existingService, propsCM}
 
 	if !requeue {
-		klog.V(log.I).InfoS("Skip reconcile: Deployment and service already exists",
+		klog.V(log.D).InfoS("Skip reconcile: Deployment and service already exists",
 			"Deployment.Namespace", existingDeployment.Namespace, "Deployment.Name", existingDeployment.Name)
 		// TODO: very naive, the state should observe the Deployment's status: https://issues.redhat.com/browse/KOGITO-8524
 
 		workflow.Status.Manager().MarkTrue(api.RunningConditionType)
-		klog.V(log.I).Info("1010101001")
 		if _, err := h.performStatusUpdate(ctx, workflow); err != nil {
 			return reconcile.Result{Requeue: false}, nil, err
 		}

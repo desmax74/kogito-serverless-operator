@@ -151,7 +151,7 @@ func configMapEnqueueRequestsFromMapFunc(c client.Client, cm *corev1.ConfigMap, 
 
 		for _, workflow := range list.Items {
 			cond := workflow.Status.GetTopLevelCondition()
-			klog.V(log.I).InfoS("ConfigMap ready, wake-up workflow: condition:%s", "configMap", "workflowName", "condition", cm.Name, workflow.Name, cond)
+			klog.V(log.D).InfoS("ConfigMap ready, wake-up workflow: condition:%s", "configMap", "workflowName", "condition", cm.Name, workflow.Name, cond)
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Namespace: workflow.Namespace,

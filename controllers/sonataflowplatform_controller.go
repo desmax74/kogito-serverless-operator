@@ -112,8 +112,7 @@ func (r *SonataFlowPlatformReconciler) Reconcile(ctx context.Context, req reconc
 		a.InjectClient(cli)
 
 		if a.CanHandle(target) {
-			klog.V(log.I).InfoS("Invoking action", "Name", a.Name())
-
+			klog.V(log.D).InfoS("Invoking action", "Name", a.Name())
 			phaseFrom := target.Status.Phase
 
 			target, err = a.Handle(ctx, target)
@@ -138,7 +137,7 @@ func (r *SonataFlowPlatformReconciler) Reconcile(ctx context.Context, req reconc
 				targetPhase = target.Status.Phase
 
 				if targetPhase != phaseFrom {
-					klog.V(log.I).InfoS(
+					klog.V(log.D).InfoS(
 						"state transition",
 						"phase-from", phaseFrom,
 						"phase-to", target.Status.Phase,

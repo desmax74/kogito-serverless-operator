@@ -1,3 +1,5 @@
+package controllers
+
 /*
  * Copyright 2023 Red Hat, Inc. and/or its affiliates.
  *
@@ -13,10 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package api
-
 const (
 	// ComponentName just a name to identify this package/component/application
-	ComponentName = "sonataflow"
+	ComponentName = "sonataflow-manager"
 )

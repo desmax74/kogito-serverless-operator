@@ -70,7 +70,6 @@ const (
 func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	build := &operatorapi.SonataFlowBuild{}
 	err := r.Client.Get(ctx, req.NamespacedName, build)
-	klog.V(log.I).Info("SonataFlowBuildReconciler Build Get")
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -93,7 +92,10 @@ func (r *SonataFlowBuildReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			return ctrl.Result{}, err
 		}
 		err := r.Status().Update(ctx, build) //@TODO
-		klog.V(log.I).Info(fmt.Sprintf("err: %v", err))
+		if err != nil {
+			klog.V(log.I).Info(fmt.Sprintf("err: %v", err))
+			return ctrl.Result{RequeueAfter: requeueAfterForNewBuild}, err
+		}
 		return ctrl.Result{RequeueAfter: requeueAfterForNewBuild}, nil
 		// TODO: this smells, why not just else? review in the future: https://issues.redhat.com/browse/KOGITO-8785
 	} else if build.Status.BuildPhase != operatorapi.BuildPhaseSucceeded && build.Status.BuildPhase != operatorapi.BuildPhaseError && build.Status.BuildPhase != operatorapi.BuildPhaseFailed {
