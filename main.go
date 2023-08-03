@@ -128,7 +128,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	klog.V(log.I).InfoS("starting manager")
+	klog.V(log.I).InfoS("********** Starting Manager **********")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.V(log.E).ErrorS(err, "problem running manager")
 		os.Exit(1)
